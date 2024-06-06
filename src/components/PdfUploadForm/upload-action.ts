@@ -12,7 +12,6 @@ function isHeaderItem (textItem: TextItem, pageHeight: number) {
   const [_sx, _shearY, _shearX, fontSize, _x, y] = textItem.transform;
 
   // ? we detect headers by check if a text item:
-  // ~is the 1st item on the page (at this point, it is)~
 
   // ? (1) has fontSize >= HEADER_FONT_SIZE_THRESHOLD
   if (fontSize < HEADER_FONT_SIZE_THRESHOLD) return false;
