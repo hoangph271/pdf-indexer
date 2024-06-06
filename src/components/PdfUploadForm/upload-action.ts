@@ -2,6 +2,7 @@
 import { PDFDocument } from 'pdf-lib';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import type { TextItem, TextMarkedContent } from 'pdfjs-dist/types/src/display/api';
+import 'pdfjs-dist/legacy/build/pdf.mjs';
 
 function isTextItem (maybeTextItem: TextItem | TextMarkedContent | undefined): maybeTextItem is TextItem {
   return 'str' in (maybeTextItem ?? {});
