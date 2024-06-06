@@ -1,6 +1,7 @@
 'use client';
 import { useRef, useState } from 'react';
 import { uploadFile } from './upload-action' ;
+import { useFormStatus } from 'react-dom';
 
 export default function PdfUploadForm () {
   const fileInput = useRef(null);
@@ -47,13 +48,25 @@ export default function PdfUploadForm () {
             />
           </p>
         </label>
-        <button
-          type="submit"
-          className={`${pdfUrl ? 'self-center' : ''} text-white bg-green-700 hover:bg-green-800 rounded-lg px-5 py-2.5`}
-        >
-          Submit
-        </button>
+        <UploadButton className={pdfUrl ? 'self-center' : ''} />
       </div>
     </form>
+  );
+}
+
+type UploadButtonProps = {
+  className?: string;
+}
+export function UploadButton({ className = ''}: UploadButtonProps) {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className={`${className} text-white bg-green-700 hover:bg-green-800 rounded-lg px-5 py-2.5`}
+    >
+      {pending ? '...' : 'Upload'}
+    </button>
   );
 }
