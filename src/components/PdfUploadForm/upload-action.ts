@@ -1,6 +1,6 @@
 'use server';
 import { PDFDocument } from 'pdf-lib';
-import puppeteer, { PDFOptions } from 'puppeteer';
+import puppeteer, { type PDFOptions } from 'puppeteer';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import type { TextItem, TextMarkedContent } from 'pdfjs-dist/types/src/display/api';
 
@@ -68,7 +68,12 @@ async function getHeaders (pdfReader: PDFDocumentProxy, pdfDocument: PDFDocument
 }
 
 async function generateTocPdf (headers: PdfHeader[], options: PDFOptions) {
-  const browser = await puppeteer.launch();
+  const browser = await puppeteer.launch({
+    headless: true,
+    // ! --no-sandbox to allow puppeteer to work inside Docker
+    // TODO: Remove this workaround
+    args: ['--no-sandbox'],
+  });
   const page = await browser.newPage();
 
   const tocHtml = `
@@ -114,13 +119,13 @@ async function generateTocPdf (headers: PdfHeader[], options: PDFOptions) {
       <h2>Table of Contents</h2>
       <ul>
         ${headers.map((header) => {
-          return `
+    return `
             <li>
             ${header.title}
               <span class="spacer"></span>
             ${header.pageIndex}
             </li>`;
-        }).join('\n')}
+  }).join('\n')}
       </ul>
     </body>
     </html>
