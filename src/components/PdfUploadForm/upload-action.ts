@@ -1,5 +1,6 @@
 'use server';
 import { PDFDocument } from 'pdf-lib';
+import puppeteer, { PDFOptions } from 'puppeteer';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import type { TextItem, TextMarkedContent } from 'pdfjs-dist/types/src/display/api';
 
@@ -34,7 +35,12 @@ function isHeaderItem (textItem: TextItem, pageHeight: number) {
   }
 }
 
-async function getHeaders (pdfReader: PDFDocumentProxy, pdfDocument: PDFDocument) {
+type PdfHeader = {
+  title: string
+  pageIndex: number
+}
+
+async function getHeaders (pdfReader: PDFDocumentProxy, pdfDocument: PDFDocument): Promise<PdfHeader[]> {
   const headers = [];
 
   for (let pageIndex = 0; pageIndex < pdfReader.numPages; pageIndex++) {
@@ -51,16 +57,85 @@ async function getHeaders (pdfReader: PDFDocumentProxy, pdfDocument: PDFDocument
       .filter(Boolean);
 
     if (headerStrings.length) {
-      headers.push(`${headerStrings.join(' ')} - ${pageIndex}`);
+      headers.push({
+        title: headerStrings.join(' '),
+        pageIndex,
+      });
     }
   }
 
   return headers;
 }
 
+async function generateTocPdf (headers: PdfHeader[], options: PDFOptions) {
+  const browser = await puppeteer.launch();
+  const page = await browser.newPage();
+
+  const tocHtml = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        body {
+          margin: 0;
+          font-family: sans-serif;
+        }
+        h2 {
+          text-align: center;
+          margin-top: 0;
+        }
+        ul {
+          padding: 0;
+          list-style: none;
+        }
+        li {
+          gap: 0.5rem;
+          display: flex;
+          font-size: ${TOC_FONT_SIZE}px;
+          line-height: ${TOC_LINE_HEIGHT}px;
+        }
+        .spacer {
+          flex-grow: 1;
+          display: flex;
+          align-items: center;
+        }
+        .spacer::after {
+          content: "";
+          display: block;
+          width: 100%;
+          border-bottom: 1px dashed lightgray;
+          margin-top: 1px;
+        }
+      </style>
+    </head>
+    <body>
+      <h2>Table of Contents</h2>
+      <ul>
+        ${headers.map((header) => {
+          return `
+            <li>
+            ${header.title}
+              <span class="spacer"></span>
+            ${header.pageIndex}
+            </li>`;
+        }).join('\n')}
+      </ul>
+    </body>
+    </html>
+  `;
+
+  await page.setContent(tocHtml);
+
+  const pdfBuffer = await page.pdf(options);
+
+  return pdfBuffer;
+}
+
 const TOC_FONT_SIZE = 16;
 const TOC_LINE_HEIGHT = 20;
-const TOC_PAGE_H_PADDING = 20;
+const TOC_PAGE_H_PADDING = 40;
 const TOC_PAGE_V_PADDING = 40;
 const HEADER_FONT_SIZE_THRESHOLD = 12;
 
@@ -78,27 +153,27 @@ export async function uploadFile (formData: FormData) {
 
   const headers = await getHeaders(pdfReader, pdfDocument);
 
-  const firstPage = pdfDocument.getPage(0);
+  const tocPdfBuffer = await generateTocPdf(headers, {
+    width: pdfDocument.getPage(0).getWidth(),
+    height: pdfDocument.getPage(0).getHeight(),
+    margin: {
+      top: TOC_PAGE_V_PADDING,
+      bottom: TOC_PAGE_V_PADDING,
+      left: TOC_PAGE_H_PADDING,
+      right: TOC_PAGE_H_PADDING,
+    },
+  });
 
-  const pageContentHeight = firstPage.getHeight() - TOC_PAGE_V_PADDING * 2;
-  const headersPerPage = Math.floor(pageContentHeight / TOC_LINE_HEIGHT);
+  const tocPdf = await PDFDocument.load(tocPdfBuffer);
 
-  let tocPageIndex = 0;
+  const tocPageIndices = Array
+    .from({ length: tocPdf.getPageCount() }, (_, i) => i);
 
-  while (headers.length) {
-    const headersInPage = headers.splice(0, headersPerPage);
-    const tocPage = pdfDocument.insertPage(tocPageIndex);
+  const tocPages = await pdfDocument.copyPages(tocPdf, tocPageIndices);
 
-    tocPage.drawText(headersInPage.join('\n'), {
-      x: TOC_PAGE_H_PADDING,
-      y: tocPage.getHeight() - TOC_PAGE_V_PADDING,
-      size: TOC_FONT_SIZE,
-      lineHeight: TOC_LINE_HEIGHT,
-      maxWidth: tocPage.getWidth(),
-    });
-
-    tocPageIndex += 1;
-  }
+  tocPages.forEach((tocPage, i) => {
+    pdfDocument.insertPage(i, tocPage);
+  });
 
   return await pdfDocument.saveAsBase64({ dataUri: true });
 }
