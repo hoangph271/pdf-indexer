@@ -3,6 +3,9 @@ import { PDFDocument } from 'pdf-lib';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import type { TextItem, TextMarkedContent } from 'pdfjs-dist/types/src/display/api';
 
+// ? Workaround for pdfjs-dist, refer https://github.com/vercel/next.js/issues/58313#issuecomment-1807184812
+import('pdfjs-dist/legacy/build/pdf.worker.mjs');
+
 function isTextItem (maybeTextItem: TextItem | TextMarkedContent | undefined): maybeTextItem is TextItem {
   return 'str' in (maybeTextItem ?? {});
 }
